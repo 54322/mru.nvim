@@ -265,13 +265,14 @@ function M.update_window()
   -- update display with indicators
   M.update_indicators()
   
-  -- hide cursor completely for cleaner look
+  -- hide cursor and cursorline completely
   vim.api.nvim_win_set_option(M.win_id, "cursorline", false)
   vim.api.nvim_win_set_option(M.win_id, "cursorcolumn", false)
-  vim.api.nvim_win_set_option(M.win_id, "guicursor", "a:hidden")
+  vim.api.nvim_buf_set_option(M.buf_id, "cursorline", false)
   
-  -- set cursor to invisible character if possible
-  pcall(vim.api.nvim_win_set_option, M.win_id, "cursor", "invisible")
+  -- create a custom highlight that makes cursorline invisible
+  vim.cmd("highlight MRUCursorLine guibg=NONE ctermbg=NONE")
+  vim.api.nvim_win_set_option(M.win_id, "winhighlight", "CursorLine:MRUCursorLine")
   
   local start_line = (#M.items > 1) and 2 or 1
   api.nvim_win_set_cursor(M.win_id, {start_line, 0})
