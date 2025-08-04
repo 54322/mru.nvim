@@ -4,6 +4,7 @@ local M = {
   config = {
     max_history      = 10,
     ignore_filetypes = {},
+    ignore_patterns  = {},  -- gitignore-style patterns
     float = {
       width   = 0.5,
       height  = 0.4,
@@ -17,6 +18,37 @@ local M = {
   buf_id = nil,
 }
 
+-- convert gitignore-style pattern to lua pattern
+local function pattern_to_lua(pattern)
+  -- escape lua pattern characters except * and ?
+  local escaped = pattern:gsub("[%(%)%.%+%-%^%$%%%[%]%{%}]", "%%%1")
+  -- convert * to .* and ? to .
+  escaped = escaped:gsub("%*", ".*"):gsub("%?", ".")
+  return escaped
+end
+
+-- check if path matches any ignore pattern
+local function matches_ignore_pattern(filepath)
+  for _, pattern in ipairs(M.config.ignore_patterns) do
+    local lua_pattern = pattern_to_lua(pattern)
+    
+    -- handle leading slash patterns (absolute from root)
+    if pattern:match("^/") then
+      if filepath:match("^" .. lua_pattern:sub(2)) then
+        return true
+      end
+    else
+      -- handle patterns that can match anywhere in path
+      if filepath:match(lua_pattern) or 
+         filepath:match("/" .. lua_pattern) or
+         filepath:match("/" .. lua_pattern .. "/") then
+        return true
+      end
+    end
+  end
+  return false
+end
+
 -- decide if we should track this buffer
 local function should_track(bufnr)
   local name = vim.api.nvim_buf_get_name(bufnr)
@@ -24,11 +56,13 @@ local function should_track(bufnr)
   if name == "" then
     return false
   end
-  -- skip any file in /private (or under it)
-  if name:match("^/private/") then
+  
+  -- check ignore patterns
+  if matches_ignore_pattern(name) then
     return false
   end
-  -- now check your ignore_filetypes
+  
+  -- check ignore_filetypes
   local ft = vim.api.nvim_buf_get_option(bufnr, "filetype")
   for _, ign in ipairs(M.config.ignore_filetypes) do
     if ft == ign then
@@ -57,6 +91,66 @@ function M.on_buf_enter(ev)
   if #M.items > M.config.max_history then
     M.items[#M.items] = nil
   end
+end
+
+-- compute shortest unique paths for display
+local function get_display_paths(filepaths)
+  if #filepaths <= 1 then
+    return vim.tbl_map(function(path) return vim.fn.fnamemodify(path, ":t") end, filepaths)
+  end
+  
+  local display_paths = {}
+  local basenames = {}
+  
+  -- group files by basename
+  for i, filepath in ipairs(filepaths) do
+    local basename = vim.fn.fnamemodify(filepath, ":t")
+    if not basenames[basename] then
+      basenames[basename] = {}
+    end
+    table.insert(basenames[basename], {index = i, path = filepath})
+  end
+  
+  -- for each file, determine shortest unique path
+  for basename, files in pairs(basenames) do
+    if #files == 1 then
+      -- unique basename, just show filename
+      display_paths[files[1].index] = basename
+    else
+      -- multiple files with same basename, find shortest unique paths
+      for _, file in ipairs(files) do
+        local path_parts = vim.split(file.path, "/")
+        local shortest_path = basename
+        
+        -- build path from right to left until unique
+        for j = #path_parts - 1, 1, -1 do
+          local candidate = table.concat(vim.list_slice(path_parts, j), "/")
+          
+          -- check if this candidate is unique among conflicting files
+          local unique = true
+          for _, other_file in ipairs(files) do
+            if other_file.index ~= file.index then
+              local other_parts = vim.split(other_file.path, "/")
+              local other_candidate = table.concat(vim.list_slice(other_parts, j), "/")
+              if candidate == other_candidate then
+                unique = false
+                break
+              end
+            end
+          end
+          
+          if unique then
+            shortest_path = candidate
+            break
+          end
+        end
+        
+        display_paths[file.index] = shortest_path
+      end
+    end
+  end
+  
+  return display_paths
 end
 
 -- wrap-around navigation
@@ -139,17 +233,19 @@ function M.update_window()
       { nowait=true, silent=true, noremap=true })
   end
 
-  -- populate buffer and position cursor
-  api.nvim_buf_set_lines(M.buf_id, 0, -1, false, M.items)
+  -- populate buffer with shortest unique paths and position cursor
+  local display_paths = get_display_paths(M.items)
+  api.nvim_buf_set_lines(M.buf_id, 0, -1, false, display_paths)
   local start_line = (#M.items > 1) and 2 or 1
   api.nvim_win_set_cursor(M.win_id, {start_line, 0})
 end
 
 -- open selection and close
 function M.open_selection()
-  local line = api.nvim_get_current_line()
+  local row = api.nvim_win_get_cursor(M.win_id)[1]
+  local filepath = M.items[row]
   M.close_window()
-  vim.cmd("edit " .. fn.fnameescape(line))
+  vim.cmd("edit " .. fn.fnameescape(filepath))
 end
 
 -- close the float
