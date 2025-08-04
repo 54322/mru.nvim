@@ -144,16 +144,27 @@ local function get_display_paths(filepaths)
   return display_paths
 end
 
+-- create highlight group for selected line
+local function setup_highlights()
+  vim.cmd("highlight MRUSelected gui=bold cterm=bold")
+end
+
 -- update line indicators based on cursor position
 function M.update_indicators()
   if not (M.win_id and api.nvim_win_is_valid(M.win_id)) then return end
   if not M.display_paths then return end
   
+  -- ensure highlights are set up
+  setup_highlights()
+  
   local current_row = api.nvim_win_get_cursor(M.win_id)[1]
   local formatted_lines = {}
   
+  -- create namespace for our highlights
+  local ns_id = api.nvim_create_namespace("mru_highlights")
+  
   -- clear any existing highlights
-  api.nvim_buf_clear_namespace(M.buf_id, -1, 0, -1)
+  api.nvim_buf_clear_namespace(M.buf_id, ns_id, 0, -1)
   
   for i, path in ipairs(M.display_paths) do
     local indicator = (i == current_row) and ">" or " "
@@ -161,7 +172,7 @@ function M.update_indicators()
     
     -- make selected line bold
     if i == current_row then
-      api.nvim_buf_add_highlight(M.buf_id, -1, "Bold", i-1, 0, -1)
+      api.nvim_buf_add_highlight(M.buf_id, ns_id, "MRUSelected", i-1, 0, -1)
     end
   end
   
@@ -265,14 +276,12 @@ function M.update_window()
   -- update display with indicators
   M.update_indicators()
   
-  -- hide cursor and cursorline completely
+  -- completely disable cursorline and make it invisible
   vim.api.nvim_win_set_option(M.win_id, "cursorline", false)
   vim.api.nvim_win_set_option(M.win_id, "cursorcolumn", false)
-  vim.api.nvim_buf_set_option(M.buf_id, "cursorline", false)
   
-  -- create a custom highlight that makes cursorline invisible
-  vim.cmd("highlight MRUCursorLine guibg=NONE ctermbg=NONE")
-  vim.api.nvim_win_set_option(M.win_id, "winhighlight", "CursorLine:MRUCursorLine")
+  -- override cursorline to be completely invisible for this window
+  vim.api.nvim_win_set_option(M.win_id, "winhighlight", "CursorLine:Normal,CursorLineNr:Normal")
   
   local start_line = (#M.items > 1) and 2 or 1
   api.nvim_win_set_cursor(M.win_id, {start_line, 0})
