@@ -5,11 +5,10 @@ local M = {
     max_history     = 10,
     ignore_patterns = {},  -- gitignore-style patterns
     float = {
-      width   = 0.5,
-      height  = 0.4,
-      row     = 0.3,
-      col     = 0.25,
+      width   = 0.6,
+      height  = 0.5,
       border  = "rounded",
+      title   = " Recent Files ",
     },
   },
   items  = {},  -- MRU queue
@@ -181,12 +180,12 @@ function M.update_window()
     M.buf_id = api.nvim_create_buf(false, true)
     api.nvim_buf_set_option(M.buf_id, "bufhidden", "wipe")
 
-    -- compute float geometry
+    -- compute float geometry (centered)
     local cfg = M.config.float
     local W = math.floor(vim.o.columns * cfg.width)
     local H = math.floor(vim.o.lines   * cfg.height)
-    local R = math.floor((vim.o.lines  - H) * cfg.row)
-    local C = math.floor((vim.o.columns - W) * cfg.col)
+    local R = math.floor((vim.o.lines  - H) / 2)
+    local C = math.floor((vim.o.columns - W) / 2)
 
     -- open floating window
     M.win_id = api.nvim_open_win(M.buf_id, true, {
@@ -197,6 +196,8 @@ function M.update_window()
       col      = C,
       style    = "minimal",
       border   = cfg.border,
+      title    = cfg.title,
+      title_pos = "center",
     })
 
     -- mappings inside the float:
