@@ -144,41 +144,6 @@ local function get_display_paths(filepaths)
   return display_paths
 end
 
--- create highlight group for selected line
-local function setup_highlights()
-  vim.cmd("highlight MRUSelected gui=bold cterm=bold")
-end
-
--- update line indicators based on cursor position
-function M.update_indicators()
-  if not (M.win_id and api.nvim_win_is_valid(M.win_id)) then return end
-  if not M.display_paths then return end
-  
-  -- ensure highlights are set up
-  setup_highlights()
-  
-  local current_row = api.nvim_win_get_cursor(M.win_id)[1]
-  local formatted_lines = {}
-  
-  -- create namespace for our highlights
-  local ns_id = api.nvim_create_namespace("mru_highlights")
-  
-  -- clear any existing highlights
-  api.nvim_buf_clear_namespace(M.buf_id, ns_id, 0, -1)
-  
-  for i, path in ipairs(M.display_paths) do
-    local indicator = (i == current_row) and ">" or " "
-    formatted_lines[i] = indicator .. " " .. path
-    
-    -- make selected line bold
-    if i == current_row then
-      api.nvim_buf_add_highlight(M.buf_id, ns_id, "MRUSelected", i-1, 0, -1)
-    end
-  end
-  
-  api.nvim_buf_set_lines(M.buf_id, 0, -1, false, formatted_lines)
-end
-
 -- wrap-around navigation
 function M.cycle_next()
   if not (M.win_id and api.nvim_win_is_valid(M.win_id)) then return end
@@ -186,7 +151,6 @@ function M.cycle_next()
   local cur   = api.nvim_win_get_cursor(M.win_id)[1]
   local nxt   = (cur == total) and 1 or (cur + 1)
   api.nvim_win_set_cursor(M.win_id, {nxt, 0})
-  M.update_indicators()
 end
 
 function M.cycle_prev()
@@ -195,7 +159,6 @@ function M.cycle_prev()
   local cur   = api.nvim_win_get_cursor(M.win_id)[1]
   local prv   = (cur == 1) and total or (cur - 1)
   api.nvim_win_set_cursor(M.win_id, {prv, 0})
-  M.update_indicators()
 end
 
 -- delete the entry under cursor
@@ -261,28 +224,11 @@ function M.update_window()
       { nowait=true, silent=true, noremap=true })
     api.nvim_buf_set_keymap(buf, "n", "<Esc>", "<Cmd>lua require('mru').close_window()<CR>",
       { nowait=true, silent=true, noremap=true })
-    
-    -- update indicators on cursor movement
-    api.nvim_create_autocmd("CursorMoved", {
-      buffer = buf,
-      callback = M.update_indicators,
-    })
   end
 
   -- populate buffer with shortest unique paths and position cursor
   local display_paths = get_display_paths(M.items)
-  M.display_paths = display_paths  -- store for updating indicators
-  
-  -- update display with indicators
-  M.update_indicators()
-  
-  -- completely disable cursorline and make it invisible
-  vim.api.nvim_win_set_option(M.win_id, "cursorline", false)
-  vim.api.nvim_win_set_option(M.win_id, "cursorcolumn", false)
-  
-  -- override cursorline to be completely invisible for this window
-  vim.api.nvim_win_set_option(M.win_id, "winhighlight", "CursorLine:Normal,CursorLineNr:Normal")
-  
+  api.nvim_buf_set_lines(M.buf_id, 0, -1, false, display_paths)
   local start_line = (#M.items > 1) and 2 or 1
   api.nvim_win_set_cursor(M.win_id, {start_line, 0})
 end
