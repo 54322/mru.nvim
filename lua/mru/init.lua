@@ -152,9 +152,17 @@ function M.update_indicators()
   local current_row = api.nvim_win_get_cursor(M.win_id)[1]
   local formatted_lines = {}
   
+  -- clear any existing highlights
+  api.nvim_buf_clear_namespace(M.buf_id, -1, 0, -1)
+  
   for i, path in ipairs(M.display_paths) do
     local indicator = (i == current_row) and ">" or " "
     formatted_lines[i] = indicator .. " " .. path
+    
+    -- make selected line bold
+    if i == current_row then
+      api.nvim_buf_add_highlight(M.buf_id, -1, "Bold", i-1, 0, -1)
+    end
   end
   
   api.nvim_buf_set_lines(M.buf_id, 0, -1, false, formatted_lines)
@@ -260,6 +268,10 @@ function M.update_window()
   -- hide cursor completely for cleaner look
   vim.api.nvim_win_set_option(M.win_id, "cursorline", false)
   vim.api.nvim_win_set_option(M.win_id, "cursorcolumn", false)
+  vim.api.nvim_win_set_option(M.win_id, "guicursor", "a:hidden")
+  
+  -- set cursor to invisible character if possible
+  pcall(vim.api.nvim_win_set_option, M.win_id, "cursor", "invisible")
   
   local start_line = (#M.items > 1) and 2 or 1
   api.nvim_win_set_cursor(M.win_id, {start_line, 0})
