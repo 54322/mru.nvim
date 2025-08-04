@@ -144,6 +144,22 @@ local function get_display_paths(filepaths)
   return display_paths
 end
 
+-- update line indicators based on cursor position
+function M.update_indicators()
+  if not (M.win_id and api.nvim_win_is_valid(M.win_id)) then return end
+  if not M.display_paths then return end
+  
+  local current_row = api.nvim_win_get_cursor(M.win_id)[1]
+  local formatted_lines = {}
+  
+  for i, path in ipairs(M.display_paths) do
+    local indicator = (i == current_row) and ">" or " "
+    formatted_lines[i] = indicator .. " " .. path
+  end
+  
+  api.nvim_buf_set_lines(M.buf_id, 0, -1, false, formatted_lines)
+end
+
 -- wrap-around navigation
 function M.cycle_next()
   if not (M.win_id and api.nvim_win_is_valid(M.win_id)) then return end
@@ -151,6 +167,7 @@ function M.cycle_next()
   local cur   = api.nvim_win_get_cursor(M.win_id)[1]
   local nxt   = (cur == total) and 1 or (cur + 1)
   api.nvim_win_set_cursor(M.win_id, {nxt, 0})
+  M.update_indicators()
 end
 
 function M.cycle_prev()
@@ -159,6 +176,7 @@ function M.cycle_prev()
   local cur   = api.nvim_win_get_cursor(M.win_id)[1]
   local prv   = (cur == 1) and total or (cur - 1)
   api.nvim_win_set_cursor(M.win_id, {prv, 0})
+  M.update_indicators()
 end
 
 -- delete the entry under cursor
@@ -224,16 +242,23 @@ function M.update_window()
       { nowait=true, silent=true, noremap=true })
     api.nvim_buf_set_keymap(buf, "n", "<Esc>", "<Cmd>lua require('mru').close_window()<CR>",
       { nowait=true, silent=true, noremap=true })
+    
+    -- update indicators on cursor movement
+    api.nvim_create_autocmd("CursorMoved", {
+      buffer = buf,
+      callback = M.update_indicators,
+    })
   end
 
   -- populate buffer with shortest unique paths and position cursor
   local display_paths = get_display_paths(M.items)
-  -- add visual indicator and padding so selection is clear
-  local formatted_lines = vim.tbl_map(function(path) return " " .. path end, display_paths)
-  api.nvim_buf_set_lines(M.buf_id, 0, -1, false, formatted_lines)
+  M.display_paths = display_paths  -- store for updating indicators
+  
+  -- update display with indicators
+  M.update_indicators()
   
   -- hide cursor completely for cleaner look
-  vim.api.nvim_win_set_option(M.win_id, "cursorline", true)
+  vim.api.nvim_win_set_option(M.win_id, "cursorline", false)
   vim.api.nvim_win_set_option(M.win_id, "cursorcolumn", false)
   
   local start_line = (#M.items > 1) and 2 or 1
