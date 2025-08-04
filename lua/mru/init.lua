@@ -228,11 +228,16 @@ function M.update_window()
 
   -- populate buffer with shortest unique paths and position cursor
   local display_paths = get_display_paths(M.items)
-  -- add padding to each line so cursor doesn't cover first character
-  local padded_lines = vim.tbl_map(function(path) return "  " .. path end, display_paths)
-  api.nvim_buf_set_lines(M.buf_id, 0, -1, false, padded_lines)
+  -- add visual indicator and padding so selection is clear
+  local formatted_lines = vim.tbl_map(function(path) return " " .. path end, display_paths)
+  api.nvim_buf_set_lines(M.buf_id, 0, -1, false, formatted_lines)
+  
+  -- hide cursor completely for cleaner look
+  vim.api.nvim_win_set_option(M.win_id, "cursorline", true)
+  vim.api.nvim_win_set_option(M.win_id, "cursorcolumn", false)
+  
   local start_line = (#M.items > 1) and 2 or 1
-  api.nvim_win_set_cursor(M.win_id, {start_line, 2})
+  api.nvim_win_set_cursor(M.win_id, {start_line, 0})
 end
 
 -- open selection and close
