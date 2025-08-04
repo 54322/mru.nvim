@@ -2,9 +2,8 @@ local api, fn = vim.api, vim.fn
 
 local M = {
   config = {
-    max_history      = 10,
-    ignore_filetypes = {},
-    ignore_patterns  = {},  -- gitignore-style patterns
+    max_history     = 10,
+    ignore_patterns = {},  -- gitignore-style patterns
     float = {
       width   = 0.5,
       height  = 0.4,
@@ -62,13 +61,6 @@ local function should_track(bufnr)
     return false
   end
   
-  -- check ignore_filetypes
-  local ft = vim.api.nvim_buf_get_option(bufnr, "filetype")
-  for _, ign in ipairs(M.config.ignore_filetypes) do
-    if ft == ign then
-      return false
-    end
-  end
   return true
 end
 
