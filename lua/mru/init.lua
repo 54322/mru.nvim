@@ -19,12 +19,23 @@ local M = {
 
 -- decide if we should track this buffer
 local function should_track(bufnr)
-  local ft = api.nvim_buf_get_option(bufnr, "filetype")
-  for _, ign in ipairs(M.config.ignore_filetypes) do
-    if ft == ign then return false end
+  local name = vim.api.nvim_buf_get_name(bufnr)
+  -- skip unnamed buffers
+  if name == "" then
+    return false
   end
-  local name = api.nvim_buf_get_name(bufnr)
-  return name ~= ""  -- skip unnamed
+  -- skip any file in /private (or under it)
+  if name:match("^/private/") then
+    return false
+  end
+  -- now check your ignore_filetypes
+  local ft = vim.api.nvim_buf_get_option(bufnr, "filetype")
+  for _, ign in ipairs(M.config.ignore_filetypes) do
+    if ft == ign then
+      return false
+    end
+  end
+  return true
 end
 
 -- bump file into MRU queue on BufEnter
